@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance Predictor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0812;
+      --surface:   #100e1c;
+      --panel:     #16132a;
+      --border:    #2a2440;
+      --border-hi: #3d3460;
+      --violet:    #7c3aed;
+      --violet-lt: #a78bfa;
+      --violet-bg: #1e1a2e;
+      --text:      #e8e4f0;
+      --muted:     #8880a0;
+      --faint:     #4e4669;
+      --dim:       #6b6480;
+      --font:      'Space Grotesk', sans-serif;
+      --mono:      'Space Mono', monospace;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+
+    .app { width: 100%; max-width: 920px; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--violet-lt); }
+    .logo-text h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.4px; color: var(--text); }
+    .logo-text p { font-size: 12px; color: var(--dim); margin-top: 3px; }
+    .badge {
+      background: var(--violet-bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 5px 14px;
+      font-size: 11px; color: var(--violet-lt); font-weight: 600; letter-spacing: 0.3px;
+    }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .col { display: flex; flex-direction: column; gap: 14px; }
+
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px;
+    }
+    .panel-label {
+      font-size: 10px; font-weight: 600; color: var(--faint);
+      letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 16px;
+    }
+
+    .models { display: flex; flex-direction: column; gap: 6px; }
+    .model-opt {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 10px;
+      border: 1px solid transparent; cursor: pointer; transition: all 0.15s;
+    }
+    .model-opt:hover { background: var(--violet-bg); border-color: var(--border-hi); }
+    .model-opt.active { background: var(--violet-bg); border-color: var(--violet); }
+    .model-radio {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border-hi); flex-shrink: 0; transition: all 0.15s;
+    }
+    .model-opt.active .model-radio { background: var(--violet-lt); border-color: var(--violet-lt); }
+    .model-name { font-size: 14px; color: var(--muted); flex: 1; transition: color 0.15s; }
+    .model-opt.active .model-name { color: var(--text); font-weight: 500; }
+    .model-r2 { font-family: var(--mono); font-size: 11px; color: var(--faint); transition: color 0.15s; }
+    .model-opt.active .model-r2 { color: var(--violet); }
+
+    .fields { display: flex; flex-direction: column; gap: 12px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 11px; font-weight: 500; color: var(--dim); letter-spacing: 0.3px; }
+    .field input, .field select {
+      font-family: var(--font); font-size: 14px; color: var(--text);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px; width: 100%;
+      outline: none; transition: border-color 0.15s;
+      -webkit-appearance: none; appearance: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--violet); }
+    .field select option { background: var(--panel); }
+
+    .cta-btn {
+      width: 100%; padding: 13px; border-radius: 12px; border: none;
+      background: var(--violet); color: #fff; font-family: var(--font);
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      letter-spacing: 0.2px; transition: background 0.15s, transform 0.1s;
+    }
+    .cta-btn:hover { background: #6d28d9; }
+    .cta-btn:active { transform: scale(0.98); }
+    .cta-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .result-panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; min-height: 150px;
+    }
+    .result-idle { font-size: 13px; color: var(--faint); text-align: center; }
+    .result-label {
+      font-size: 10px; font-weight: 600; color: var(--violet);
+      letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px; text-align: center;
+    }
+    .result-score {
+      font-family: var(--mono); font-size: 60px; font-weight: 700;
+      color: var(--violet-lt); line-height: 1; text-align: center;
+    }
+    .result-via { font-size: 11px; color: var(--faint); margin-top: 10px; text-align: center; }
+    .result-err { font-size: 13px; color: #f87171; text-align: center; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .stat {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; text-align: center;
+    }
+    .stat-val { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--violet-lt); }
+    .stat-lbl { font-size: 10px; color: var(--faint); margin-top: 4px; font-weight: 500; letter-spacing: 0.3px; }
+
+    .divider { height: 1px; background: var(--border); margin: 0 0 14px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    thead th {
+      text-align: left; padding: 6px 8px; color: var(--faint);
+      font-weight: 500; border-bottom: 1px solid var(--border);
+      font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+    }
+    tbody td {
+      padding: 10px 8px; border-bottom: 1px solid #1a1728;
+      color: var(--muted); font-family: var(--mono); font-size: 11px;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr.hl td { background: var(--violet-bg); color: #c4b5fd; }
+    tbody tr.hl td:first-child {
+      color: var(--text); font-family: var(--font);
+      font-weight: 500; font-size: 13px;
+      border-radius: 6px 0 0 6px;
+    }
+    tbody tr.hl td:last-child { border-radius: 0 6px 6px 0; }
+    .tbl-name { font-family: var(--font) !important; font-size: 12px !important; }
+    .active-tag {
+      display: inline-block; font-size: 9px; padding: 2px 7px;
+      border-radius: 20px; background: #2d2645; color: var(--violet-lt);
+      margin-left: 6px; font-family: var(--font); font-weight: 600;
+      letter-spacing: 0.5px; vertical-align: middle;
+    }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .result-score { font-size: 44px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <div class="logo-text">
+        <h1>Performance predictor</h1>
+        <p>ML-powered score estimation</p>
+      </div>
+    </div>
+    <div class="badge">v2.0 beta</div>
+  </div>
+
+  <div class="grid">
+
+    <div class="col">
+
+      <div class="panel">
+        <div class="panel-label">Prediction model</div>
+        <div class="models">
+          <div class="model-opt active" data-model="xgboost" onclick="selectModel(this)">
+            <div class="model-radio"></div>
+            <span class="model-name">XGBoost</span>
+            <span class="model-r2" id="perf-xgboost">R² —</span>
+          </div>
+          <div class="model-opt" data-model="random_forest" onclick="selectModel(this)">
+            <div class="model-radio"></div>
+            <span class="model-name">Random forest</span>
+            <span class="model-r2" id="perf-random_forest">R² —</span>
+          </div>
+          <div class="model-opt" data-model="linear_regression" onclick="selectModel(this)">
+            <div class="model-radio"></div>
+            <span class="model-name">Linear regression</span>
+            <span class="model-r2" id="perf-linear_regression">R² —</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-label">Student inputs</div>
+        <div class="fields">
+          <div class="field">
+            <label>Hours studied / day (0–24)</label>
+            <input type="number" id="Hours_Studied" value="7" step="0.5" min="0" max="24">
+          </div>
+          <div class="field">
+            <label>Previous score (0–100)</label>
+            <input type="number" id="Previous_Scores" value="85" step="1" min="0" max="100">
+          </div>
+          <div class="field">
+            <label>Sleep hours / night (0–24)</label>
+            <input type="number" id="Sleep_Hours" value="8" step="0.5" min="0" max="24">
+          </div>
+          <div class="field">
+            <label>Sample papers practiced</label>
+            <input type="number" id="Sample_Question_Papers_Practiced" value="5" step="1" min="0">
+          </div>
+          <div class="field">
+            <label>Extracurricular activities</label>
+            <select id="Extracurricular_Activities">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="cta-btn" id="runBtn" onclick="predict()">Run prediction</button>
+
+    </div>
+
+    <div class="col">
+
+      <div class="result-panel">
+        <div id="resultIdle" class="result-idle">Run a prediction to see your score</div>
+        <div id="resultOut" style="display:none;width:100%;text-align:center;">
+          <div class="result-label">Predicted performance index</div>
+          <div class="result-score" id="scoreVal">—</div>
+          <div class="result-via" id="scoreVia"></div>
+        </div>
+        <div id="resultErr" class="result-err" style="display:none;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-label">Benchmarks</div>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-val" id="bestR2">—</div>
+            <div class="stat-lbl">Best R²</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="bestMAE">—</div>
+            <div class="stat-lbl">Low MAE</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="bestRMSE">—</div>
+            <div class="stat-lbl">Low RMSE</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th><th>R²</th><th>MAE</th><th>RMSE</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody">
+            <tr><td colspan="4" style="color:#4e4669;font-family:'Space Grotesk',sans-serif;padding:12px 8px;font-size:12px;">Loading metrics…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  let selectedModel = 'xgboost';
+  let resultsData = [];
+
+  function selectModel(el) {
+    document.querySelectorAll('.model-opt').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    selectedModel = el.dataset.model;
+    renderTable();
+  }
+
+  async function loadMetrics() {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/model-results');
+      const data = await res.json();
+      resultsData = data.results;
+      updateStats();
+      updateModelPerf();
+      renderTable();
+    } catch {
+      document.getElementById('tblBody').innerHTML =
+        '<tr><td colspan="4" style="color:#f87171;font-family:\'Space Grotesk\',sans-serif;padding:12px 8px;font-size:12px;">API server unavailable</td></tr>';
+    }
+  }
+
+  function updateStats() {
+    if (!resultsData.length) return;
+    const best = resultsData.reduce((a, b) => a['R² Score'] > b['R² Score'] ? a : b);
+    const lm   = resultsData.reduce((a, b) => a.MAE  < b.MAE  ? a : b);
+    const lr   = resultsData.reduce((a, b) => a.RMSE < b.RMSE ? a : b);
+    document.getElementById('bestR2').textContent   = best['R² Score'].toFixed(3);
+    document.getElementById('bestMAE').textContent  = lm.MAE.toFixed(3);
+    document.getElementById('bestRMSE').textContent = lr.RMSE.toFixed(3);
+  }
+
+  function updateModelPerf() {
+    resultsData.forEach(m => {
+      const id = m.Model.toLowerCase().replace(/ /g, '_');
+      const el = document.getElementById('perf-' + id);
+      if (el) el.textContent = 'R² ' + m['R² Score'].toFixed(3);
+    });
+  }
+
+  function renderTable() {
+    if (!resultsData.length) return;
+    const rows = resultsData.map(m => {
+      const id = m.Model.toLowerCase().replace(/ /g, '_');
+      const hl =
+        (selectedModel === 'xgboost'          && id.includes('xgboost')) ||
+        (selectedModel === 'random_forest'     && id.includes('random_forest')) ||
+        (selectedModel === 'linear_regression' && id.includes('linear_regression'));
+      return `<tr class="${hl ? 'hl' : ''}">
+        <td class="tbl-name">${m.Model}${hl ? '<span class="active-tag">ON</span>' : ''}</td>
+        <td>${m['R² Score'].toFixed(4)}</td>
+        <td>${m.MAE.toFixed(4)}</td>
+        <td>${m.RMSE.toFixed(4)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('tblBody').innerHTML = rows;
+  }
+
+  async function predict() {
+    const btn = document.getElementById('runBtn');
+    btn.textContent = 'Running…';
+    btn.disabled = true;
+
+    document.getElementById('resultIdle').style.display = 'none';
+    document.getElementById('resultOut').style.display  = 'none';
+    document.getElementById('resultErr').style.display  = 'none';
+
+    const payload = {
+      Hours_Studied:                    parseFloat(document.getElementById('Hours_Studied').value),
+      Previous_Scores:                  parseFloat(document.getElementById('Previous_Scores').value),
+      Extracurricular_Activities:       parseInt(document.getElementById('Extracurricular_Activities').value),
+      Sleep_Hours:                      parseFloat(document.getElementById('Sleep_Hours').value),
+      Sample_Question_Papers_Practiced: parseFloat(document.getElementById('Sample_Question_Papers_Practiced').value),
+      model: selectedModel
+    };
+
+    try {
+      const res = await fetch('http://127.0.0.1:8000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.error) {
+        document.getElementById('resultErr').textContent    = data.error;
+        document.getElementById('resultErr').style.display  = 'block';
+      } else {
+        document.getElementById('scoreVal').textContent       = data['Predicted Performance Index'];
+        document.getElementById('scoreVia').textContent       = 'via ' + data.model;
+        document.getElementById('resultOut').style.display    = 'block';
+      }
+    } catch {
+      document.getElementById('resultErr').textContent   = 'Could not reach the API server';
+      document.getElementById('resultErr').style.display = 'block';
+    }
+
+    btn.textContent = 'Run prediction';
+    btn.disabled = false;
+  }
+
+  window.onload = loadMetrics;
+</script>
+</body>
+</html>
